@@ -24,17 +24,21 @@ context.check_hostname = False
 context.verify_mode = ssl.CERT_NONE
 
 # URL to test whether we're logged in. This needs to be a URL that doesn't result in a redirect.
-TEST_URL = 'http://www.apple.com'
+TEST_URL = 'http://draftboard.co.th/'
 # Content in the TEST_URL, to make sure we ultimately loaded the real thing and not a redirect.
-TEST_URL_CONTENT = r'<meta name="Author" content="Apple Inc." />'
+TEST_URL_CONTENT = r'http://draftboard.co.th/wp-content/uploads/2015/05/main-icon-2.png'
 # Regex for finding the login URL from the login page
-LOGIN_URL_REGEX = r'<div id="button_content"><a href="([^"]*)"'
+LOGIN_URL_REGEX = r'<form class="form-signin" method="post" action="([^"]*)"'
 # Some headers to impersonate a browser. It seems like without these, the server doesn't trust us.
 HEADERS = \
 (('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.152 Safari/537.36'),
-('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'),
-('Accept-Encoding', 'gzip,deflate,sdch'),
+('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8'),
+('Accept-Encoding', 'gzip,deflate'),
 ('Accept-Language', 'en-US,en;q=0.8'),
+('Cache-Control', 'max-age=0'),
+('Content-Type', 'application/x-www-form-urlencoded'),
+('Host', '192.168.10.1:8002'),
+('Origin', 'http://192.168.10.1:8002'),
 ('Connection', 'keep-alive'))
 DEFAULT_WAIT_TIME = 15
 
@@ -65,7 +69,12 @@ def get_login_page_url_from_redirect():
     opener = urllib2.build_opener(*handlers)
     req = urllib2.Request(TEST_URL)
     response = opener.open(req)
-    return response.headers.get('Location')
+    res = response.headers.get('Location')
+
+    if res != TEST_URL:
+        return res
+    else:
+        return None
 
 
 def uncompress_possibly_gzipped_response(response):
@@ -98,7 +107,7 @@ def get_cookies_and_login_url_from_login_page(login_page_url):
     return cookies, login_url[0]
 
 
-def login(login_url, cookies, referrer):
+def login(login_url, cookies, referrer, user, password):
     handlers = [
         urllib2.HTTPSHandler(context=context),
         urllib2.HTTPCookieProcessor(cookies),
@@ -110,7 +119,9 @@ def login(login_url, cookies, referrer):
 
     opener.addheaders.append(('Referer', referrer))
 
-    req = urllib2.Request(login_url)
+    data = urllib.urlencode({'auth_user' : user, 'auth_pass' : password, 'redirurl': 'http://www.draftboard.co.th', 'accept': 'Sign in'})
+
+    req = urllib2.Request(login_url, data)
     response = opener.open(req)
 
     response_string = uncompress_possibly_gzipped_response(response)
@@ -121,7 +132,7 @@ def login(login_url, cookies, referrer):
     return len(results) > 0
 
 
-def login_to_wifi():
+def login_to_wifi(user, password):
     """Returns True if login was needed and completed successfully. Returns false if login was unnecessary or failed."""
     logging.info('Checking for login redirect (trying %s)' % TEST_URL)
     login_page_url = get_login_page_url_from_redirect()
@@ -133,7 +144,7 @@ def login_to_wifi():
     cookies, login_url = get_cookies_and_login_url_from_login_page(login_page_url)
 
     logging.info('Attempting to login (%s)' % login_url)
-    logged_in = login(login_url, cookies, login_page_url)
+    logged_in = login(login_url, cookies, login_page_url, user, password)
 
     if logged_in:
         logging.info('Successfully redirected to %s. We are now logged in.' % TEST_URL)
@@ -184,6 +195,8 @@ def cron_thyself(original_arguments=[]):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Automatically logs into hotspots that have a login/agreement page.', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('user', help='user')
+    parser.add_argument('password', help='password')
     parser.add_argument('--loglevel', help='Set log level to DEBUG, INFO, WARNING, or ERROR', default='INFO')
     parser.add_argument('--logfile', help='Log file to append to.',)
     parser.add_argument('--retries', help='Number of times to retry.', type=int, default=0)
@@ -191,6 +204,8 @@ if __name__ == '__main__':
     parser.add_argument('--retrytime', help='Time to wait between retries (in seconds). Unless --noexpwait is specified, this is only the wait time for the first retry.', type=int, default=DEFAULT_WAIT_TIME)
     parser.add_argument('--cron', help="If provided, the script will automatically attempt to re-cron itself after 24 hours.", action='store_true')
     args = parser.parse_args()
+    user = args.user
+    password = args.password
     log_level = args.loglevel
     log_file = args.logfile
     retries = args.retries
@@ -206,7 +221,7 @@ if __name__ == '__main__':
 
     while True:
         try:
-            logged_in = login_to_wifi()
+            logged_in = login_to_wifi(user, password)
             if logged_in:
                 if cron:
                     cron_thyself(sys.argv)
@@ -224,3 +239,4 @@ if __name__ == '__main__':
             sleep(sleep_time)
         else:
             break
+        

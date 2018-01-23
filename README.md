@@ -2,6 +2,8 @@ Hotspot Autologin Script
 ========================
 Script to automatically log into wifi hotspots that redirect to an agreement page before they will give you access. I use this script on my Raspberry Pi to automatically log me into the wifi at the Berkeley Marina, but it should be easy to adapt to other hotspots that use the common redirect->agree->connect pattern. Tested on Python2.7.
 
+Update to draftboard.co.th wifi
+
 Features
 --------
 * Login to hotspots from the command line without a web browser
@@ -17,14 +19,14 @@ Run
 ---
 Nothing fancy here, just run it like you'd run any old script.
 
-    python hotspot_autologin.py
+    python hotspot_autologin.py <user> <password>
 
 or
 
-    ./hotspot_autologin.py
+    ./hotspot_autologin.py <user> <password>
 
 Example
 -------
 Here's how I use it:
 
-    hotspot_autologin.py --cron --retries 15 --logfile /var/log/hotspot_autologin.log
+    hotspot_autologin.py dfboard 1q2w3e4r --retries 15 --logfile /var/log/hotspot_autologin.log
